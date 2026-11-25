@@ -218,6 +218,11 @@ class SamadClient(private val onLog: (String) -> Unit) {
         return form.selectFirst("#selfId option[selected]")?.attr("value")?.trim() ?: ""
     }
 
+    private fun hasSelfOption(form: Element, selfId: String): Boolean {
+        val selfSel = form.selectFirst("select#selfId") ?: return false
+        return selfSel.select("option").any { it.attr("value").trim() == selfId }
+    }
+
     private fun parseCredit(doc: Document): Long? {
         val text = doc.selectFirst("#creditId")?.text()?.trim() ?: return null
         val digits = text.replace(Regex("[^\\d-]"), "")
@@ -263,7 +268,18 @@ class SamadClient(private val onLog: (String) -> Unit) {
             val dayName = WEEKDAYS.getOrElse(rowIdx) { "Day-${rowIdx + 1}" }
             val jalaliDate = cells[0].selectFirst("div")?.text()?.trim() ?: "----/--/--"
             val lunchCell = cells[lunchColIdx]
-            val checkboxes = lunchCell.select("input[type=checkbox][name^=userWeekReserves][name$=\\.selected]")
+
+            val checkboxes = mutableListOf<Element>()
+            for (inp in lunchCell.select("input")) {
+                val type = inp.attr("type")
+                val name = inp.attr("name")
+                if (type.equals("checkbox", ignoreCase = true) &&
+                    name.startsWith("userWeekReserves") &&
+                    name.endsWith(".selected")
+                ) {
+                    checkboxes.add(inp)
+                }
+            }
 
             if (checkboxes.isNotEmpty()) {
                 if (checkboxes.any { it.hasAttr("checked") }) {
@@ -324,8 +340,7 @@ class SamadClient(private val onLog: (String) -> Unit) {
 
         // Select target self if needed
         if (getCurrentSelfId(form) != targetSelfId) {
-            val opt = form.selectFirst("select#selfId option[value=$targetSelfId]")
-            if (opt == null) {
+            if (!hasSelfOption(form, targetSelfId)) {
                 val msg = "Self ID $targetSelfId not found in dropdown."
                 onLog("Error: $msg")
                 return CycleResult("FAILED ($msg)", "error", msg, emptyList())
@@ -354,8 +369,7 @@ class SamadClient(private val onLog: (String) -> Unit) {
 
         // Re-select target self on next week if reset
         if (getCurrentSelfId(form) != targetSelfId) {
-            val opt = form.selectFirst("select#selfId option[value=$targetSelfId]")
-            if (opt == null) {
+            if (!hasSelfOption(form, targetSelfId)) {
                 val (bStatus, bMsg) = getBannerInfo(doc)
                 val msg = "Self ID $targetSelfId unavailable for next week."
                 onLog(msg)
@@ -411,7 +425,7 @@ class SamadClient(private val onLog: (String) -> Unit) {
             val countName = cbName.replace(".selected", ".selectedCount")
             payload[cbName] = row.cbVal
 
-            val countSel = form.selectFirst("select[name=$countName]")
+            val countSel = form.select("select").firstOrNull { it.attr("name") == countName }
             val qty = countSel?.let {
                 (it.selectFirst("option[selected]") ?: it.selectFirst("option"))?.attr("value")
             }?.ifBlank { "1" } ?: "1"

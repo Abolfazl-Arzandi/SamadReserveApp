@@ -21,17 +21,22 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
+import org.json.JSONArray
+import org.json.JSONObject
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
 data class UiState(
     val isRunning: Boolean = false,
-    val statusText: String = "STOPPED",
+    val statusText: String = "STANDBY",
+    val nextCheckText: String = "Every 5m in background",
     val bannerStatus: String = "none",
-    val serverMessage: String = "No checks run yet.",
+    val serverMessage: String = "Tap CHECK NOW or toggle Auto Monitor.",
     val days: List<DayStatus> = emptyList(),
-    val logs: List<String> = listOf("Ready.")
+    val selfOptions: List<SelfOption> = SamadClient.DEFAULT_SELFS,
+    val credit: Long? = null,
+    val logs: List<String> = listOf("SamadYar ready.")
 )
 
 object AppStateHolder {
@@ -47,6 +52,34 @@ object AppStateHolder {
 
     fun clearLogs() {
         state.value = state.value.copy(logs = listOf("Logs cleared."))
+    }
+
+    fun loadCachedSelfs(context: Context): List<SelfOption> {
+        val prefs = context.getSharedPreferences("samad_prefs", Context.MODE_PRIVATE)
+        val raw = prefs.getString("self_list_json", null) ?: return SamadClient.DEFAULT_SELFS
+        return try {
+            val arr = JSONArray(raw)
+            val list = mutableListOf<SelfOption>()
+            for (i in 0 until arr.length()) {
+                val obj = arr.getJSONObject(i)
+                list.add(SelfOption(obj.getString("id"), obj.getString("name")))
+            }
+            if (list.isNotEmpty()) list else SamadClient.DEFAULT_SELFS
+        } catch (_: Exception) {
+            SamadClient.DEFAULT_SELFS
+        }
+    }
+
+    fun saveSelfs(context: Context, list: List<SelfOption>) {
+        if (list.isEmpty()) return
+        val arr = JSONArray()
+        for (item in list) {
+            arr.put(JSONObject().put("id", item.id).put("name", item.name))
+        }
+        context.getSharedPreferences("samad_prefs", Context.MODE_PRIVATE)
+            .edit()
+            .putString("self_list_json", arr.toString())
+            .apply()
     }
 }
 
@@ -69,7 +102,19 @@ class ReserveService : Service() {
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
-        samadClient = SamadClient { msg -> AppStateHolder.appendLog(msg) }
+        samadClient = SamadClient(
+            onLog = { msg -> AppStateHolder.appendLog(msg) },
+            onMetaUpdated = { selfs, credit ->
+                if (selfs.isNotEmpty()) {
+                    AppStateHolder.saveSelfs(applicationContext, selfs)
+                }
+                val cur = AppStateHolder.state.value
+                AppStateHolder.state.value = cur.copy(
+                    selfOptions = if (selfs.isNotEmpty()) selfs else cur.selfOptions,
+                    credit = credit ?: cur.credit
+                )
+            }
+        )
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -79,20 +124,20 @@ class ReserveService : Service() {
                 return START_NOT_STICKY
             }
             ACTION_CHECK_NOW -> {
-                startMonitoring(immediateOnly = false, resetLoop = true)
+                val keepRunning = AppStateHolder.state.value.isRunning
+                runImmediateOrLoop(singleShot = !keepRunning)
             }
             else -> {
-                startMonitoring(immediateOnly = false, resetLoop = loopJob == null)
+                runImmediateOrLoop(singleShot = false)
             }
         }
         return START_STICKY
     }
 
-    private fun startMonitoring(immediateOnly: Boolean, resetLoop: Boolean) {
+    private fun runImmediateOrLoop(singleShot: Boolean) {
         val prefs = getSharedPreferences("samad_prefs", Context.MODE_PRIVATE)
         val username = prefs.getString("username", "")?.trim() ?: ""
         val password = prefs.getString("password", "")?.trim() ?: ""
-        val selfId = prefs.getString("self_id", "29")?.trim()?.ifEmpty { "29" } ?: "29"
 
         if (username.isEmpty() || password.isEmpty()) {
             AppStateHolder.appendLog("Error: Username/password not configured.")
@@ -100,7 +145,7 @@ class ReserveService : Service() {
             return
         }
 
-        val notif = buildNotification("Monitoring Self $selfId...")
+        val notif = buildNotification(if (singleShot) "Checking now..." else "Auto monitor active...")
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             ServiceCompat.startForeground(
                 this,
@@ -113,24 +158,44 @@ class ReserveService : Service() {
         }
 
         acquireWakeLock()
-        AppStateHolder.state.value = AppStateHolder.state.value.copy(
-            isRunning = true,
-            statusText = "RUNNING (Self $selfId)"
-        )
 
-        if (resetLoop || loopJob?.isActive != true) {
-            loopJob?.cancel()
-            loopJob = scope.launch {
+        loopJob?.cancel()
+        loopJob = scope.launch {
+            if (singleShot) {
+                AppStateHolder.state.value = AppStateHolder.state.value.copy(
+                    isRunning = false,
+                    statusText = "CHECKING...",
+                    nextCheckText = "Single check in progress"
+                )
+                val selfId = prefs.getString("self_id", "29")?.trim()?.ifEmpty { "29" } ?: "29"
+                runOneCycle(username, password, selfId)
+                releaseWakeLock()
+                AppStateHolder.state.value = AppStateHolder.state.value.copy(
+                    isRunning = false,
+                    statusText = "STANDBY",
+                    nextCheckText = "Every 5m in background"
+                )
+                stopForeground(STOP_FOREGROUND_REMOVE)
+                stopSelf()
+            } else {
+                AppStateHolder.state.value = AppStateHolder.state.value.copy(
+                    isRunning = true,
+                    statusText = "ACTIVE"
+                )
                 while (true) {
+                    val selfId = prefs.getString("self_id", "29")?.trim()?.ifEmpty { "29" } ?: "29"
+                    AppStateHolder.state.value = AppStateHolder.state.value.copy(statusText = "CHECKING...")
                     runOneCycle(username, password, selfId)
-                    if (immediateOnly) break
 
                     val nextTime = SimpleDateFormat("HH:mm:ss", Locale.US)
                         .format(Date(System.currentTimeMillis() + INTERVAL_MS))
-                    val waitMsg = "RUNNING | Next check at $nextTime"
-                    AppStateHolder.state.value = AppStateHolder.state.value.copy(statusText = waitMsg)
-                    AppStateHolder.appendLog("Sleeping 5 min... Next check at $nextTime")
-                    updateNotification("Next check at $nextTime")
+                    AppStateHolder.state.value = AppStateHolder.state.value.copy(
+                        isRunning = true,
+                        statusText = "ACTIVE",
+                        nextCheckText = "Next check at $nextTime"
+                    )
+                    AppStateHolder.appendLog("Sleeping 5m... Next check at $nextTime")
+                    updateNotification("Self $selfId • Next check at $nextTime")
                     delay(INTERVAL_MS)
                 }
             }
@@ -139,18 +204,16 @@ class ReserveService : Service() {
 
     private fun runOneCycle(username: String, password: String, selfId: String) {
         try {
-            AppStateHolder.state.value = AppStateHolder.state.value.copy(
-                statusText = "CHECKING NOW..."
-            )
             updateNotification("Checking Samad (Self $selfId)...")
-
             val res = samadClient.checkAndReserveNextWeek(username, password, selfId)
             AppStateHolder.state.value = AppStateHolder.state.value.copy(
                 bannerStatus = res.bannerStatus,
                 serverMessage = "${res.overallStatus}\n${res.serverMessage}",
-                days = res.days
+                days = res.days,
+                selfOptions = if (res.selfOptions.isNotEmpty()) res.selfOptions else AppStateHolder.state.value.selfOptions,
+                credit = res.credit ?: AppStateHolder.state.value.credit
             )
-            updateNotification("${res.overallStatus}")
+            updateNotification(res.overallStatus)
         } catch (e: Exception) {
             val err = "Error: ${e.message ?: e::class.java.simpleName}"
             AppStateHolder.appendLog(err)
@@ -165,10 +228,11 @@ class ReserveService : Service() {
         loopJob?.cancel()
         loopJob = null
         releaseWakeLock()
-        AppStateHolder.appendLog("Stopped by user.")
+        AppStateHolder.appendLog("Auto monitor stopped.")
         AppStateHolder.state.value = AppStateHolder.state.value.copy(
             isRunning = false,
-            statusText = "STOPPED"
+            statusText = "STANDBY",
+            nextCheckText = "Every 5m in background"
         )
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
@@ -177,10 +241,10 @@ class ReserveService : Service() {
     private fun acquireWakeLock() {
         if (wakeLock == null) {
             val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
-            wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "SamadReserve::Lock")
+            wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "SamadYar::Lock")
         }
         if (wakeLock?.isHeld == false) {
-            wakeLock?.acquire(6 * 60 * 60 * 1000L) // Up to 6 hours
+            wakeLock?.acquire(6 * 60 * 60 * 1000L)
         }
     }
 
@@ -194,7 +258,7 @@ class ReserveService : Service() {
         val nm = getSystemService(NotificationManager::class.java)
         val ch = NotificationChannel(
             CHANNEL_ID,
-            "Samad Background Monitor",
+            "SamadYar Background Monitor",
             NotificationManager.IMPORTANCE_LOW
         )
         nm.createNotificationChannel(ch)
@@ -215,7 +279,7 @@ class ReserveService : Service() {
         )
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("Samad Auto-Reserve")
+            .setContentTitle("SamadYar")
             .setContentText(text)
             .setSmallIcon(R.drawable.ic_launcher)
             .setContentIntent(openIntent)

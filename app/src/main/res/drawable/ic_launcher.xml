@@ -1,12 +1,31 @@
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
-    android:viewportWidth="24"
-    android:viewportHeight="24">
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Dark modern squircle background -->
     <path
-        android:fillColor="#2E7D32"
-        android:pathData="M12,2C6.48,2 2,6.48 2,12s4.48,10 10,10 10,-4.48 10,-10S17.52,2 12,2z" />
+        android:fillColor="#111111"
+        android:pathData="M22,6 H86 A16,16 0 0,1 102,22 V86 A16,16 0 0,1 86,102 H22 A16,16 0 0,1 6,86 V22 A16,16 0 0,1 22,6 Z" />
+
+    <!-- Minimalist cloche top knob -->
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M11,9H9V2H7v7H5V2H3v7c0,2.12 1.66,3.84 3.75,3.97V22h2.5v-9.03C11.34,12.84 13,11.12 13,9V2h-2v7zM16,6v8h2.5v8H21V2c-2.76,0 -5,2.24 -5,4z" />
+        android:pathData="M54,29 A4,4 0 1,1 53.99,29 Z" />
+
+    <!-- Minimalist cloche dome -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M30,60 A24,24 0 0,1 78,60 Z" />
+
+    <!-- Minimalist plate bar -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M26,65 H82 A3,3 0 0,1 85,68 A3,3 0 0,1 82,71 H26 A3,3 0 0,1 23,68 A3,3 0 0,1 26,65 Z" />
+
+    <!-- Subtle active status dot -->
+    <path
+        android:fillColor="#22C55E"
+        android:pathData="M77,31 A6,6 0 1,1 76.99,31 Z" />
 </vector>

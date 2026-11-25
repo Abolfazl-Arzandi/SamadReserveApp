@@ -5,11 +5,14 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Color
+import android.graphics.Typeface
 import android.os.Build
 import android.os.Bundle
+import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
-import android.widget.Button
+import android.widget.ArrayAdapter
+import android.widget.AutoCompleteTextView
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
@@ -18,21 +21,29 @@ import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
+import com.google.android.material.button.MaterialButton
+import com.google.android.material.switchmaterial.SwitchMaterial
 import com.google.android.material.textfield.TextInputEditText
 import kotlinx.coroutines.launch
+import java.text.NumberFormat
+import java.util.Locale
 
 class MainActivity : AppCompatActivity() {
 
     private lateinit var tvAccountInfo: TextView
     private lateinit var tvServiceState: TextView
+    private lateinit var tvNextCheck: TextView
     private lateinit var tvServerBanner: TextView
     private lateinit var llDaysContainer: LinearLayout
     private lateinit var tvLogs: TextView
     private lateinit var svLogs: ScrollView
-    private lateinit var btnStartStop: Button
-    private lateinit var btnCheckNow: Button
-    private lateinit var btnAccount: Button
-    private lateinit var btnClearLogs: Button
+    private lateinit var switchAuto: SwitchMaterial
+    private lateinit var actSelf: AutoCompleteTextView
+    private lateinit var btnCheckNow: MaterialButton
+    private lateinit var btnAccount: MaterialButton
+    private lateinit var btnClearLogs: MaterialButton
+
+    private var currentSelfList: List<SelfOption> = emptyList()
 
     private val notifPermLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -44,17 +55,23 @@ class MainActivity : AppCompatActivity() {
 
         tvAccountInfo = findViewById(R.id.tvAccountInfo)
         tvServiceState = findViewById(R.id.tvServiceState)
+        tvNextCheck = findViewById(R.id.tvNextCheck)
         tvServerBanner = findViewById(R.id.tvServerBanner)
         llDaysContainer = findViewById(R.id.llDaysContainer)
         tvLogs = findViewById(R.id.tvLogs)
         svLogs = findViewById(R.id.svLogs)
-        btnStartStop = findViewById(R.id.btnStartStop)
+        switchAuto = findViewById(R.id.switchAuto)
+        actSelf = findViewById(R.id.actSelf)
         btnCheckNow = findViewById(R.id.btnCheckNow)
         btnAccount = findViewById(R.id.btnAccount)
         btnClearLogs = findViewById(R.id.btnClearLogs)
 
         requestNotificationPermissionIfNeeded()
-        refreshAccountHeader()
+
+        val cachedSelfs = AppStateHolder.loadCachedSelfs(this)
+        AppStateHolder.state.value = AppStateHolder.state.value.copy(selfOptions = cachedSelfs)
+        updateSelfDropdown(cachedSelfs)
+        refreshAccountHeader(AppStateHolder.state.value.credit)
 
         if (!hasCredentials()) {
             showLoginDialog(cancelable = false)
@@ -63,8 +80,18 @@ class MainActivity : AppCompatActivity() {
         btnAccount.setOnClickListener { showLoginDialog(cancelable = true) }
         btnClearLogs.setOnClickListener { AppStateHolder.clearLogs() }
 
-        btnStartStop.setOnClickListener {
+        actSelf.setOnItemClickListener { _, _, position, _ ->
+            val picked = currentSelfList.getOrNull(position) ?: return@setOnItemClickListener
+            getSharedPreferences("samad_prefs", Context.MODE_PRIVATE)
+                .edit()
+                .putString("self_id", picked.id)
+                .apply()
+            AppStateHolder.appendLog("Dining hall changed to ID ${picked.id}")
+        }
+
+        switchAuto.setOnClickListener {
             if (!hasCredentials()) {
+                switchAuto.isChecked = false
                 showLoginDialog(cancelable = false)
                 return@setOnClickListener
             }
@@ -113,31 +140,45 @@ class MainActivity : AppCompatActivity() {
         return u.isNotBlank() && p.isNotBlank()
     }
 
-    private fun refreshAccountHeader() {
+    private fun refreshAccountHeader(credit: Long?) {
         val prefs = getSharedPreferences("samad_prefs", Context.MODE_PRIVATE)
-        val u = prefs.getString("username", "")?.ifBlank { "Not set" } ?: "Not set"
-        val s = prefs.getString("self_id", "29")?.ifBlank { "29" } ?: "29"
-        tvAccountInfo.text = "Account: $u  |  Self ID: $s"
+        val u = prefs.getString("username", "")?.ifBlank { "NOT SET" } ?: "NOT SET"
+        val creditStr = if (credit != null) {
+            "${NumberFormat.getNumberInstance(Locale.US).format(credit)} IRR"
+        } else {
+            "—"
+        }
+        tvAccountInfo.text = "ID: $u  •  CREDIT: $creditStr"
+    }
+
+    private fun updateSelfDropdown(options: List<SelfOption>) {
+        if (options.isEmpty() || options == currentSelfList) return
+        currentSelfList = options
+        val adapter = ArrayAdapter(this, android.R.layout.simple_dropdown_item_1line, options)
+        actSelf.setAdapter(adapter)
+
+        val savedId = getSharedPreferences("samad_prefs", Context.MODE_PRIVATE)
+            .getString("self_id", "29") ?: "29"
+        val selected = options.firstOrNull { it.id == savedId } ?: options.first()
+        actSelf.setText(selected.name, false)
     }
 
     private fun showLoginDialog(cancelable: Boolean) {
         val view = LayoutInflater.from(this).inflate(R.layout.dialog_login, null)
         val etUser = view.findViewById<TextInputEditText>(R.id.etUsername)
         val etPass = view.findViewById<TextInputEditText>(R.id.etPassword)
-        val etSelf = view.findViewById<TextInputEditText>(R.id.etSelfId)
 
         val prefs = getSharedPreferences("samad_prefs", Context.MODE_PRIVATE)
         etUser.setText(prefs.getString("username", ""))
         etPass.setText(prefs.getString("password", ""))
-        etSelf.setText(prefs.getString("self_id", "29"))
 
         val dialog = AlertDialog.Builder(this)
-            .setTitle("Samad Account")
+            .setTitle("SAMADYAR ACCOUNT")
             .setView(view)
             .setCancelable(cancelable)
-            .setPositiveButton("Save", null)
+            .setPositiveButton("DONE", null)
             .apply {
-                if (cancelable) setNegativeButton("Cancel", null)
+                if (cancelable) setNegativeButton("CANCEL", null)
             }
             .create()
 
@@ -145,7 +186,6 @@ class MainActivity : AppCompatActivity() {
             dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
                 val u = etUser.text?.toString()?.trim() ?: ""
                 val p = etPass.text?.toString()?.trim() ?: ""
-                val s = etSelf.text?.toString()?.trim()?.ifEmpty { "29" } ?: "29"
                 if (u.isEmpty() || p.isEmpty()) {
                     etUser.error = if (u.isEmpty()) "Required" else null
                     etPass.error = if (p.isEmpty()) "Required" else null
@@ -154,10 +194,9 @@ class MainActivity : AppCompatActivity() {
                 prefs.edit()
                     .putString("username", u)
                     .putString("password", p)
-                    .putString("self_id", s)
                     .apply()
-                refreshAccountHeader()
-                AppStateHolder.appendLog("Account saved: $u (Self $s)")
+                refreshAccountHeader(AppStateHolder.state.value.credit)
+                AppStateHolder.appendLog("Account saved: $u")
                 dialog.dismiss()
             }
         }
@@ -165,32 +204,28 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun renderUiState(st: UiState) {
-        tvServiceState.text = "Status: ${st.statusText}"
-        if (st.isRunning) {
-            tvServiceState.setBackgroundColor(Color.parseColor("#DCFCE7"))
-            tvServiceState.setTextColor(Color.parseColor("#166534"))
-            btnStartStop.text = "Stop"
-            btnStartStop.setBackgroundColor(Color.parseColor("#DC2626"))
-        } else {
-            tvServiceState.setBackgroundColor(Color.parseColor("#E5E7EB"))
-            tvServiceState.setTextColor(Color.parseColor("#1F2937"))
-            btnStartStop.text = "Start (Every 5m)"
-            btnStartStop.setBackgroundColor(Color.parseColor("#2E7D32"))
+        refreshAccountHeader(st.credit)
+        updateSelfDropdown(st.selfOptions)
+
+        tvServiceState.text = st.statusText
+        tvNextCheck.text = st.nextCheckText
+        if (switchAuto.isChecked != st.isRunning) {
+            switchAuto.isChecked = st.isRunning
         }
 
         tvServerBanner.text = st.serverMessage
         when (st.bannerStatus) {
             "success" -> {
-                tvServerBanner.setBackgroundColor(Color.parseColor("#DBEAFE"))
-                tvServerBanner.setTextColor(Color.parseColor("#1E40AF"))
+                tvServerBanner.setBackgroundColor(Color.parseColor("#ECFDF5"))
+                tvServerBanner.setTextColor(Color.parseColor("#065F46"))
             }
             "error" -> {
-                tvServerBanner.setBackgroundColor(Color.parseColor("#FEE2E2"))
+                tvServerBanner.setBackgroundColor(Color.parseColor("#FEF2F2"))
                 tvServerBanner.setTextColor(Color.parseColor("#991B1B"))
             }
             else -> {
-                tvServerBanner.setBackgroundColor(Color.parseColor("#FEF3C7"))
-                tvServerBanner.setTextColor(Color.parseColor("#92400E"))
+                tvServerBanner.setBackgroundColor(Color.parseColor("#F4F4F5"))
+                tvServerBanner.setTextColor(Color.parseColor("#3F3F46"))
             }
         }
 
@@ -198,31 +233,51 @@ class MainActivity : AppCompatActivity() {
         if (st.days.isEmpty()) {
             val tv = TextView(this).apply {
                 text = "No schedule loaded yet."
-                setTextColor(Color.parseColor("#6B7280"))
-                textSize = 13f
+                setTextColor(Color.parseColor("#71717A"))
+                textSize = 12.5f
             }
             llDaysContainer.addView(tv)
         } else {
             for (day in st.days) {
-                val row = TextView(this).apply {
-                    text = "${day.dayName} (${day.jalaliDate})  —  ${day.detail}"
-                    textSize = 13f
-                    setPadding(12, 10, 12, 10)
-                    val (bg, fg) = when (day.status) {
-                        "OK" -> "#DCFCE7" to "#166534"
-                        "FAILED" -> "#FEE2E2" to "#991B1B"
-                        "OPEN" -> "#FEF9C3" to "#854D0E"
-                        else -> "#F3F4F6" to "#4B5563"
-                    }
-                    setBackgroundColor(Color.parseColor(bg))
-                    setTextColor(Color.parseColor(fg))
+                val row = LinearLayout(this).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = Gravity.CENTER_VERTICAL
+                    setPadding(24, 18, 24, 18)
+                    setBackgroundColor(Color.parseColor("#FAFAFA"))
                     val lp = LinearLayout.LayoutParams(
                         LinearLayout.LayoutParams.MATCH_PARENT,
                         LinearLayout.LayoutParams.WRAP_CONTENT
                     )
-                    lp.bottomMargin = 6
+                    lp.bottomMargin = 10
                     layoutParams = lp
                 }
+
+                val leftTv = TextView(this).apply {
+                    text = "${day.dayName.uppercase()}  ${day.jalaliDate}"
+                    textSize = 12.5f
+                    setTypeface(null, Typeface.BOLD)
+                    setTextColor(Color.parseColor("#111111"))
+                    layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                }
+
+                val (badgeText, bg, fg) = when (day.status) {
+                    "OK" -> Triple("RESERVED", "#111111", "#FFFFFF")
+                    "FAILED" -> Triple("FULL / FAILED", "#FEE2E2", "#991B1B")
+                    "OPEN" -> Triple("OPEN", "#E4E4E7", "#111111")
+                    else -> Triple("EMPTY", "#F4F4F5", "#71717A")
+                }
+
+                val badgeTv = TextView(this).apply {
+                    text = badgeText
+                    textSize = 10.5f
+                    setTypeface(null, Typeface.BOLD)
+                    setPadding(20, 8, 20, 8)
+                    setBackgroundColor(Color.parseColor(bg))
+                    setTextColor(Color.parseColor(fg))
+                }
+
+                row.addView(leftTv)
+                row.addView(badgeTv)
                 llDaysContainer.addView(row)
             }
         }

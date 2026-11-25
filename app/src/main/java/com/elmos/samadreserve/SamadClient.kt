@@ -12,6 +12,13 @@ import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
 import java.util.concurrent.TimeUnit
 
+data class SelfOption(
+    val id: String,
+    val name: String
+) {
+    override fun toString(): String = name
+}
+
 data class DayStatus(
     val dayName: String,
     val jalaliDate: String,
@@ -27,7 +34,9 @@ data class CycleResult(
     val overallStatus: String,
     val bannerStatus: String,
     val serverMessage: String,
-    val days: List<DayStatus>
+    val days: List<DayStatus>,
+    val selfOptions: List<SelfOption> = emptyList(),
+    val credit: Long? = null
 )
 
 private class SimpleCookieJar : CookieJar {
@@ -51,13 +60,28 @@ private class SimpleCookieJar : CookieJar {
     }
 }
 
-class SamadClient(private val onLog: (String) -> Unit) {
+class SamadClient(
+    private val onLog: (String) -> Unit,
+    private val onMetaUpdated: (List<SelfOption>, Long?) -> Unit = { _, _ -> }
+) {
 
     companion object {
         private const val LOGIN_URL = "https://stu.iust.ac.ir/"
         private const val PANEL_PATH = "/nurture/user/multi/reserve/showPanel.rose"
         private val WEEKDAYS = listOf(
             "Saturday", "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday"
+        )
+
+        val DEFAULT_SELFS = listOf(
+            SelfOption("29", "مکمل رستوران آزاد1(دهکده خلاقیت ویونا) - 29"),
+            SelfOption("1", "غذاخوری برادران مرکزی - 1"),
+            SelfOption("10", "غذاخوری یاس (خواهران)(خان پاشا) - 10"),
+            SelfOption("38", "کلین فود (cleanfood) - 38"),
+            SelfOption("41", "کافه تریای کاله - 41"),
+            SelfOption("18", "کافه تریای3 (آنتراکت فود) - 18"),
+            SelfOption("19", "کافه تریای 5(بوستان حضرت معصومه(س)) - 19"),
+            SelfOption("32", "غذا خوری آزاد 2 (خواهران) - 32"),
+            SelfOption("31", "کافه تریای یاس خواهران2 - 31")
         )
     }
 
@@ -218,9 +242,17 @@ class SamadClient(private val onLog: (String) -> Unit) {
         return form.selectFirst("#selfId option[selected]")?.attr("value")?.trim() ?: ""
     }
 
-    private fun hasSelfOption(form: Element, selfId: String): Boolean {
-        val selfSel = form.selectFirst("select#selfId") ?: return false
-        return selfSel.select("option").any { it.attr("value").trim() == selfId }
+    private fun parseSelfOptions(form: Element): List<SelfOption> {
+        val selfSel = form.selectFirst("select#selfId") ?: return emptyList()
+        val list = mutableListOf<SelfOption>()
+        for (opt in selfSel.select("option")) {
+            val id = opt.attr("value").trim()
+            val name = opt.text().trim()
+            if (id.isNotEmpty() && name.isNotEmpty()) {
+                list.add(SelfOption(id, name))
+            }
+        }
+        return list
     }
 
     private fun parseCredit(doc: Document): Long? {
@@ -338,12 +370,18 @@ class SamadClient(private val onLog: (String) -> Unit) {
         var form = doc.selectFirst("form#resFinalform")
             ?: throw RuntimeException("Reservation form not found.")
 
+        var latestSelfs = parseSelfOptions(form)
+        var latestCredit = parseCredit(doc)
+        if (latestSelfs.isNotEmpty() || latestCredit != null) {
+            onMetaUpdated(latestSelfs, latestCredit)
+        }
+
         // Select target self if needed
         if (getCurrentSelfId(form) != targetSelfId) {
-            if (!hasSelfOption(form, targetSelfId)) {
+            if (latestSelfs.none { it.id == targetSelfId }) {
                 val msg = "Self ID $targetSelfId not found in dropdown."
                 onLog("Error: $msg")
-                return CycleResult("FAILED ($msg)", "error", msg, emptyList())
+                return CycleResult("FAILED ($msg)", "error", msg, emptyList(), latestSelfs, latestCredit)
             }
             onLog("[4/6] Selecting self ID $targetSelfId...")
             val (actionPath, payload) = buildResFormPayload(form, "method:showPanel")
@@ -354,6 +392,10 @@ class SamadClient(private val onLog: (String) -> Unit) {
             doc = res.second
             form = doc.selectFirst("form#resFinalform")
                 ?: throw RuntimeException("Form missing after selecting self.")
+            latestCredit = parseCredit(doc) ?: latestCredit
+            val updatedSelfs = parseSelfOptions(form)
+            if (updatedSelfs.isNotEmpty()) latestSelfs = updatedSelfs
+            onMetaUpdated(latestSelfs, latestCredit)
         }
 
         // Switch to Next Week
@@ -369,12 +411,14 @@ class SamadClient(private val onLog: (String) -> Unit) {
 
         // Re-select target self on next week if reset
         if (getCurrentSelfId(form) != targetSelfId) {
-            if (!hasSelfOption(form, targetSelfId)) {
+            val nextWeekSelfs = parseSelfOptions(form)
+            if (nextWeekSelfs.isNotEmpty()) latestSelfs = nextWeekSelfs
+            if (latestSelfs.none { it.id == targetSelfId }) {
                 val (bStatus, bMsg) = getBannerInfo(doc)
                 val msg = "Self ID $targetSelfId unavailable for next week."
                 onLog(msg)
                 if (bMsg.isNotEmpty()) onLog("Server ($bStatus): $bMsg")
-                return CycleResult("NO PROGRAM", bStatus, bMsg.ifEmpty { msg }, emptyList())
+                return CycleResult("NO PROGRAM", bStatus, bMsg.ifEmpty { msg }, emptyList(), latestSelfs, latestCredit)
             }
             onLog("Re-selecting self ID $targetSelfId for next week...")
             val (actionPath, payload) = buildResFormPayload(form, "method:showPanel")
@@ -387,6 +431,9 @@ class SamadClient(private val onLog: (String) -> Unit) {
                 ?: throw RuntimeException("Form missing after re-selecting self.")
         }
 
+        latestCredit = parseCredit(doc) ?: latestCredit
+        onMetaUpdated(latestSelfs, latestCredit)
+
         lastBaseUrl = currUrl
         onLog("[6/6] Inspecting next week's lunch schedule...")
         val beforeRows = inspectWeekLunchTable(form)
@@ -396,7 +443,7 @@ class SamadClient(private val onLog: (String) -> Unit) {
             val msg = "No meal schedule defined for next week yet."
             onLog(msg)
             if (beforeBannerMsg.isNotEmpty()) onLog("Server ($beforeBannerStatus): $beforeBannerMsg")
-            return CycleResult("NO PROGRAM", beforeBannerStatus, beforeBannerMsg.ifEmpty { msg }, emptyList())
+            return CycleResult("NO PROGRAM", beforeBannerStatus, beforeBannerMsg.ifEmpty { msg }, emptyList(), latestSelfs, latestCredit)
         }
 
         val openRows = beforeRows.filter { it.status == "OPEN" && it.cbName != null }
@@ -407,7 +454,9 @@ class SamadClient(private val onLog: (String) -> Unit) {
                 "NO ACTION (All resolved/empty)",
                 beforeBannerStatus,
                 beforeBannerMsg.ifEmpty { "Checked successfully; no open slots." },
-                beforeRows
+                beforeRows,
+                latestSelfs,
+                latestCredit
             )
         }
 
@@ -415,7 +464,6 @@ class SamadClient(private val onLog: (String) -> Unit) {
         val (actionPath, payload) = buildResFormPayload(form, "method:doReserve")
         payload["selectedSelfDefId"] = targetSelfId
 
-        val currentCredit = parseCredit(doc)
         val isFreeRest = form.selectFirst("#freeRestaurant")?.attr("value")?.equals("true", true) == true
         var totalFee = 0L
         val attemptedDates = mutableSetOf<String>()
@@ -439,15 +487,18 @@ class SamadClient(private val onLog: (String) -> Unit) {
             onLog("  + Prepared ${row.dayName} (${row.jalaliDate})$note")
         }
 
-        if (currentCredit != null) {
-            val remainCredit = currentCredit - totalFee
+        if (latestCredit != null) {
+            val remainCredit = latestCredit - totalFee
             payload["remainCredit"] = remainCredit.toString()
-            onLog("Credit: $currentCredit -> $remainCredit Rials (fee: $totalFee)")
+            onLog("Credit: $latestCredit -> $remainCredit Rials (fee: $totalFee)")
         }
 
         onLog("Submitting reservation for ${attemptedDates.size} day(s)...")
         val (afterUrl, afterDoc) = post(resolveUrl(currUrl, actionPath), currUrl, payload)
         lastBaseUrl = afterUrl
+
+        val finalCredit = parseCredit(afterDoc) ?: latestCredit
+        onMetaUpdated(latestSelfs, finalCredit)
 
         val (afterBannerStatus, afterBannerMsg) = getBannerInfo(afterDoc)
         onLog("Server ($afterBannerStatus): ${afterBannerMsg.ifEmpty { "No banner message" }}")
@@ -484,6 +535,6 @@ class SamadClient(private val onLog: (String) -> Unit) {
         }
 
         onLog("Result: $overall")
-        return CycleResult(overall, afterBannerStatus, afterBannerMsg.ifEmpty { overall }, finalDays)
+        return CycleResult(overall, afterBannerStatus, afterBannerMsg.ifEmpty { overall }, finalDays, latestSelfs, finalCredit)
     }
 }

@@ -235,9 +235,10 @@ class SamadClient(private val onLog: (String) -> Unit) {
             tr.children().any { it.tagName().equals("th", ignoreCase = true) }
         } ?: return emptyList()
 
-        val headerCells = headerTr.children().filter {
-            it.tagName().equals("th", true) || it.tagName().equals("td", true)
-        }
+        val headerCells = headerTr.children().asSequence()
+            .filter { it.tagName().equals("th", true) || it.tagName().equals("td", true) }
+            .toList()
+
         var lunchColIdx = 2
         for ((idx, cell) in headerCells.withIndex()) {
             if (cell.selectFirst("[mtid=2]") != null) {
@@ -246,11 +247,17 @@ class SamadClient(private val onLog: (String) -> Unit) {
             }
         }
 
-        val dayRows = headerTr.siblingElements().filter { it.tagName().equals("tr", true) }
+        val dayRows = headerTr.siblingElements().asSequence()
+            .filter { it.tagName().equals("tr", true) }
+            .toList()
+
         val results = mutableListOf<DayStatus>()
 
         for ((rowIdx, row) in dayRows.withIndex()) {
-            val cells = row.children().filter { it.tagName().equals("td", true) }
+            val cells = row.children().asSequence()
+                .filter { it.tagName().equals("td", true) }
+                .toList()
+
             if (cells.size <= lunchColIdx) continue
 
             val dayName = WEEKDAYS.getOrElse(rowIdx) { "Day-${rowIdx + 1}" }

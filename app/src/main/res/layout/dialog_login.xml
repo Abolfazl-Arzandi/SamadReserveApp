@@ -4,33 +4,25 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
-    android:padding="@dimen/spacing_lg">
+    android:padding="20dp">
 
     <TextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginBottom="@dimen/spacing_md"
-        android:text="@string/brand_name"
-        android:textColor="@color/text_primary"
-        android:textSize="@dimen/text_title"
-        android:textStyle="bold"
-        android:letterSpacing="0.06"
-        android:gravity="center_horizontal" />
-
-    <TextView
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginBottom="@dimen/spacing_lg"
-        android:text="@string/login_subtitle"
-        android:textColor="@color/text_secondary"
-        android:textSize="@dimen/text_caption"
-        android:gravity="center_horizontal" />
+        android:layout_marginBottom="12dp"
+        android:text="Your credentials are stored only on your phone and sent directly to stu.iust.ac.ir."
+        android:textColor="#71717A"
+        android:textSize="12sp" />
 
     <com.google.android.material.textfield.TextInputLayout
-        style="@style/Widget.SamadReserve.TextInputLayout"
+        style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:hint="@string/hint_student_id">
+        android:hint="Student ID (Username)"
+        app:boxCornerRadiusBottomEnd="12dp"
+        app:boxCornerRadiusBottomStart="12dp"
+        app:boxCornerRadiusTopEnd="12dp"
+        app:boxCornerRadiusTopStart="12dp">
 
         <com.google.android.material.textfield.TextInputEditText
             android:id="@+id/etUsername"
@@ -40,11 +32,15 @@
     </com.google.android.material.textfield.TextInputLayout>
 
     <com.google.android.material.textfield.TextInputLayout
-        style="@style/Widget.SamadReserve.TextInputLayout"
+        style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="@dimen/spacing_md"
-        android:hint="@string/hint_password"
+        android:layout_marginTop="12dp"
+        android:hint="Password"
+        app:boxCornerRadiusBottomEnd="12dp"
+        app:boxCornerRadiusBottomStart="12dp"
+        app:boxCornerRadiusTopEnd="12dp"
+        app:boxCornerRadiusTopStart="12dp"
         app:endIconMode="password_toggle">
 
         <com.google.android.material.textfield.TextInputEditText
@@ -53,4 +49,5 @@
             android:layout_height="wrap_content"
             android:inputType="textPassword" />
     </com.google.android.material.textfield.TextInputLayout>
+
 </LinearLayout>

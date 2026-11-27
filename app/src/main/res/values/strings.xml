@@ -1,0 +1,46 @@
+<resources>
+    <!-- App -->
+    <string name="app_name">SamadYar</string>
+    <string name="brand_name">SAMADYAR</string>
+
+    <!-- Account -->
+    <string name="account">ACCOUNT</string>
+    <string name="account_info_placeholder">ID: NOT SET  •  CREDIT: —</string>
+    <string name="credit_suffix"> IRR</string>
+
+    <!-- Monitor -->
+    <string name="auto_monitor">AUTO MONITOR</string>
+    <string name="service_standby">STANDBY</string>
+    <string name="dining_hall_self">DINING HALL (SELF)</string>
+    <string name="next_check">Every 5m in background</string>
+    <string name="check_now">CHECK NOW</string>
+
+    <!-- Schedule -->
+    <string name="next_week_lunch">NEXT WEEK LUNCH</string>
+    <string name="tap_check_now">Tap CHECK NOW or toggle Auto Monitor.</string>
+    <string name="no_schedule">No schedule loaded yet.</string>
+    <string name="day_reserved">RESERVED</string>
+    <string name="day_full_failed">FULL / FAILED</string>
+    <string name="day_open">OPEN</string>
+    <string name="day_empty">EMPTY</string>
+
+    <!-- Logs -->
+    <string name="live_logs">LIVE LOGS</string>
+    <string name="clear_logs">CLEAR</string>
+    <string name="logs_ready">Ready.</string>
+    <string name="log_dining_hall_changed">Dining hall changed to ID %1$s</string>
+    <string name="log_account_saved">Account saved: %1$s</string>
+
+    <!-- Login Dialog -->
+    <string name="login_title">SAMADYAR ACCOUNT</string>
+    <string name="login_subtitle">Your credentials are stored only on your phone and sent directly to stu.iust.ac.ir.</string>
+    <string name="hint_student_id">Student ID (Username)</string>
+    <string name="hint_password">Password</string>
+    <string name="btn_done">DONE</string>
+    <string name="btn_cancel">CANCEL</string>
+    <string name="error_required">Required</string>
+
+    <!-- Status -->
+    <string name="status_success">success</string>
+    <string name="status_error">error</string>
+</resources>

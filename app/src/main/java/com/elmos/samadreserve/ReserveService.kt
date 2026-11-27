@@ -90,7 +90,9 @@ class ReserveService : Service() {
         const val ACTION_STOP = "com.elmos.samadreserve.STOP"
         const val ACTION_CHECK_NOW = "com.elmos.samadreserve.CHECK_NOW"
         private const val CHANNEL_ID = "samad_reserve_channel"
+        private const val SUCCESS_CHANNEL_ID = "samad_reserve_success_channel"
         private const val NOTIF_ID = 1001
+        private const val SUCCESS_NOTIF_ID = 1002
         private const val INTERVAL_MS = 5 * 60 * 1000L // 5 minutes
     }
 
@@ -101,7 +103,7 @@ class ReserveService : Service() {
 
     override fun onCreate() {
         super.onCreate()
-        createNotificationChannel()
+        createNotificationChannels()
         samadClient = SamadClient(
             onLog = { msg -> AppStateHolder.appendLog(msg) },
             onMetaUpdated = { selfs, credit ->
@@ -214,6 +216,15 @@ class ReserveService : Service() {
                 credit = res.credit ?: AppStateHolder.state.value.credit
             )
             updateNotification(res.overallStatus)
+
+            // Trigger lock-screen confirmation notification as soon as at least one reservation succeeds
+            val newlyReserved = res.days.filter {
+                it.detail.contains("Reserved in this run", ignoreCase = true)
+            }
+            if (newlyReserved.isNotEmpty() || res.overallStatus.startsWith("SUCCESS")) {
+                showSuccessNotification(res, newlyReserved)
+                AppStateHolder.appendLog("Confirmation notification sent!")
+            }
         } catch (e: Exception) {
             val err = "Error: ${e.message ?: e::class.java.simpleName}"
             AppStateHolder.appendLog(err)
@@ -254,14 +265,26 @@ class ReserveService : Service() {
         }
     }
 
-    private fun createNotificationChannel() {
+    private fun createNotificationChannels() {
         val nm = getSystemService(NotificationManager::class.java)
-        val ch = NotificationChannel(
+
+        val bgChannel = NotificationChannel(
             CHANNEL_ID,
             "SamadYar Background Monitor",
             NotificationManager.IMPORTANCE_LOW
         )
-        nm.createNotificationChannel(ch)
+        nm.createNotificationChannel(bgChannel)
+
+        val successChannel = NotificationChannel(
+            SUCCESS_CHANNEL_ID,
+            "Reservation Confirmations",
+            NotificationManager.IMPORTANCE_HIGH
+        ).apply {
+            description = "Alerts immediately when a lunch reservation succeeds"
+            enableVibration(true)
+            lockscreenVisibility = Notification.VISIBILITY_PUBLIC
+        }
+        nm.createNotificationChannel(successChannel)
     }
 
     private fun buildNotification(text: String): Notification {
@@ -291,6 +314,42 @@ class ReserveService : Service() {
     private fun updateNotification(text: String) {
         val nm = getSystemService(NotificationManager::class.java)
         nm.notify(NOTIF_ID, buildNotification(text))
+    }
+
+    private fun showSuccessNotification(res: CycleResult, newlyReserved: List<DayStatus>) {
+        val openIntent = PendingIntent.getActivity(
+            this,
+            2,
+            Intent(this, MainActivity::class.java),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+
+        val shortSummary = if (newlyReserved.isNotEmpty()) {
+            "Reserved: " + newlyReserved.joinToString(", ") { "${it.dayName} (${it.jalaliDate})" }
+        } else {
+            res.overallStatus
+        }
+
+        val fullLines = res.days
+            .filter { it.status == "OK" || it.status == "FAILED" }
+            .joinToString("\n") { "• ${it.dayName} (${it.jalaliDate}): ${it.detail}" }
+
+        val bodyText = if (fullLines.isNotEmpty()) fullLines else res.serverMessage
+
+        val notif = NotificationCompat.Builder(this, SUCCESS_CHANNEL_ID)
+            .setContentTitle("SamadYar: Reservation Confirmed!")
+            .setContentText(shortSummary)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(bodyText))
+            .setSmallIcon(R.drawable.ic_launcher)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .setDefaults(NotificationCompat.DEFAULT_ALL)
+            .setAutoCancel(true)
+            .setContentIntent(openIntent)
+            .build()
+
+        val nm = getSystemService(NotificationManager::class.java)
+        nm.notify(SUCCESS_NOTIF_ID, notif)
     }
 
     override fun onDestroy() {

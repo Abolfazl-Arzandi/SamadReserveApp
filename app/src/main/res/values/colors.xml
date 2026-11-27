@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Brand / Primary -->
+    <color name="primary">#1E293B</color>
+    <color name="primary_dark">#0F172A</color>
+    <color name="primary_light">#F8FAFC</color>
+    <color name="on_primary">#FFFFFF</color>
+
+    <!-- Accent -->
+    <color name="secondary">#0EA5E9</color>
+    <color name="secondary_light">#E0F2FE</color>
+    <color name="on_secondary">#FFFFFF</color>
+
+    <!-- Surface & Background -->
+    <color name="surface">#FFFFFF</color>
+    <color name="background">#F1F5F9</color>
+    <color name="on_background">#0F172A</color>
+    <color name="on_surface">#0F172A</color>
+
+    <!-- Surface variant (muted backgrounds) -->
+    <color name="surface_variant">#F1F5F9</color>
+    <color name="outline">#CBD5E1</color>
+    <color name="outline_variant">#E2E8F0</color>
+
+    <!-- Text -->
+    <color name="text_primary">#0F172A</color>
+    <color name="text_secondary">#475569</color>
+    <color name="text_tertiary">#64748B</color>
+
+    <!-- State colors -->
+    <color name="success">#10B981</color>
+    <color name="success_light">#ECFDF5</color>
+    <color name="success_dark">#065F46</color>
+    <color name="error">#EF4444</color>
+    <color name="error_light">#FEF2F2</color>
+    <color name="error_dark">#991B1B</color>
+    <color name="warning">#F59E0B</color>
+    <color name="warning_light">#FFFBEB</color>
+    <color name="warning_dark">#92400E</color>
+
+    <!-- Dividers -->
+    <color name="divider">#E2E8F0</color>
+</resources>

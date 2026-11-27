@@ -30,6 +30,7 @@ import java.util.Locale
 
 class MainActivity : AppCompatActivity() {
 
+    private lateinit var tvWalletBalance: TextView
     private lateinit var tvAccountInfo: TextView
     private lateinit var tvServiceState: TextView
     private lateinit var tvNextCheck: TextView
@@ -53,6 +54,7 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
+        tvWalletBalance = findViewById(R.id.tvWalletBalance)
         tvAccountInfo = findViewById(R.id.tvAccountInfo)
         tvServiceState = findViewById(R.id.tvServiceState)
         tvNextCheck = findViewById(R.id.tvNextCheck)
@@ -143,12 +145,12 @@ class MainActivity : AppCompatActivity() {
     private fun refreshAccountHeader(credit: Long?) {
         val prefs = getSharedPreferences("samad_prefs", Context.MODE_PRIVATE)
         val u = prefs.getString("username", "")?.ifBlank { "NOT SET" } ?: "NOT SET"
-        val creditStr = if (credit != null) {
+        tvAccountInfo.text = "ID: $u"
+        tvWalletBalance.text = if (credit != null) {
             "${NumberFormat.getNumberInstance(Locale.US).format(credit)} IRR"
         } else {
-            "—"
+            "— IRR"
         }
-        tvAccountInfo.text = "ID: $u  •  CREDIT: $creditStr"
     }
 
     private fun updateSelfDropdown(options: List<SelfOption>) {

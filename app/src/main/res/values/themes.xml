@@ -1,96 +1,11 @@
 <resources>
     <style name="Theme.SamadReserve" parent="Theme.MaterialComponents.Light.NoActionBar">
-        <!-- Primary -->
-        <item name="colorPrimary">@color/primary</item>
-        <item name="colorPrimaryVariant">@color/primary_dark</item>
-        <item name="colorOnPrimary">@color/on_primary</item>
-
-        <!-- Secondary / Accent -->
-        <item name="colorSecondary">@color/secondary</item>
-        <item name="colorSecondaryVariant">@color/secondary</item>
-        <item name="colorOnSecondary">@color/on_secondary</item>
-
-        <!-- Surface -->
-        <item name="colorSurface">@color/surface</item>
-        <item name="colorOnSurface">@color/on_surface</item>
-
-        <!-- Background -->
-        <item name="android:colorBackground">@color/background</item>
-
-        <!-- Typography-ish via text colors -->
-        <item name="android:textColorPrimary">@color/text_primary</item>
-        <item name="android:textColorSecondary">@color/text_secondary</item>
-
-        <!-- UI controls -->
-        <item name="colorControlActivated">@color/secondary</item>
-        <item name="colorControlNormal">@color/text_tertiary</item>
-
-        <!-- Status bar -->
-        <item name="android:statusBarColor">@color/background</item>
+        <item name="colorPrimary">#111111</item>
+        <item name="colorPrimaryVariant">#000000</item>
+        <item name="colorOnPrimary">#FFFFFF</item>
+        <item name="colorSecondary">#111111</item>
+        <item name="colorControlActivated">#111111</item>
+        <item name="android:statusBarColor">#F4F4F5</item>
         <item name="android:windowLightStatusBar">true</item>
-
-        <!-- Material button style -->
-        <item name="materialButtonStyle">@style/Widget.SamadReserve.Button</item>
-        <item name="materialButtonOutlinedStyle">@style/Widget.SamadReserve.Button.Outlined</item>
-        <item name="materialButtonTextStyle">@style/Widget.SamadReserve.Button.Text</item>
-
-        <!-- Text input style -->
-        <item name="textInputStyle">@style/Widget.SamadReserve.TextInputLayout</item>
-
-        <!-- Switch -->
-        <item name="materialSwitchStyle">@style/Widget.SamadReserve.Switch</item>
-    </style>
-
-    <!-- Buttons -->
-    <style name="Widget.SamadReserve.Button" parent="Widget.MaterialComponents.Button.ElevatedButton">
-        <item name="android:textColor">@color/on_primary</item>
-        <item name="backgroundTint">@color/primary</item>
-        <item name="cornerRadius">@dimen/button_corner_radius</item>
-        <item name="android:textSize">@dimen/text_overline</item>
-        <item name="android:textStyle">bold</item>
-        <item name="letterSpacing">0.06</item>
-        <item name="rippleColor">#33FFFFFF</item>
-        <item name="elevation">2dp</item>
-    </style>
-
-    <style name="Widget.SamadReserve.Button.Outlined" parent="Widget.MaterialComponents.Button.OutlinedButton">
-        <item name="android:textColor">@color/primary</item>
-        <item name="strokeColor">@color/outline</item>
-        <item name="strokeWidth">1dp</item>
-        <item name="cornerRadius">@dimen/button_corner_radius</item>
-        <item name="android:textSize">@dimen/text_overline</item>
-        <item name="android:textStyle">bold</item>
-        <item name="letterSpacing">0.06</item>
-        <item name="rippleColor">#331E293B</item>
-    </style>
-
-    <style name="Widget.SamadReserve.Button.Text" parent="Widget.MaterialComponents.Button.TextButton">
-        <item name="android:textColor">@color/text_secondary</item>
-        <item name="cornerRadius">@dimen/button_corner_radius</item>
-        <item name="android:textSize">@dimen/text_overline</item>
-        <item name="android:textStyle">bold</item>
-        <item name="letterSpacing">0.06</item>
-    </style>
-
-    <!-- Text input -->
-    <style name="Widget.SamadReserve.TextInputLayout" parent="Widget.MaterialComponents.TextInputLayout.OutlinedBox">
-        <item name="boxStrokeColor">@color/outline</item>
-        <item name="boxStrokeWidth">1dp</item>
-        <item name="boxStrokeWidthFocused">2dp</item>
-        <item name="boxBackgroundColor">@color/surface</item>
-        <item name="boxCornerRadiusTopStart">@dimen/input_corner_radius</item>
-        <item name="boxCornerRadiusTopEnd">@dimen/input_corner_radius</item>
-        <item name="boxCornerRadiusBottomStart">@dimen/input_corner_radius</item>
-        <item name="boxCornerRadiusBottomEnd">@dimen/input_corner_radius</item>
-        <item name="hintTextColor">@color/text_tertiary</item>
-        <item name="errorIconTint">@color/error</item>
-    </style>
-
-    <!-- Switch -->
-    <style name="Widget.SamadReserve.Switch" parent="Widget.MaterialComponents.CompoundButton.Switch">
-        <item name="trackTint">@color/outline</item>
-        <item name="thumbTint">@color/surface</item>
-        <item name="trackTintActive">@color/secondary</item>
-        <item name="thumbTintActive">@color/secondary</item>
     </style>
 </resources>
